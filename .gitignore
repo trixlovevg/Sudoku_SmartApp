@@ -2,3 +2,6 @@ node_modules/
 dist/ 
 .cache/ 
 .env 
+.env.local
+.env.*.local
+smartcode-old/

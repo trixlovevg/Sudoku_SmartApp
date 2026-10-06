@@ -53,13 +53,35 @@ function App() {
     status: game.status
   }), [game]);
 
-  useEffect(() => {
-    let assistant;
-    initAssistant(handleAction, () => assistantState).then((instance) => {
-      assistant = instance;
-    });
-    return () => assistant?.close?.();
-  }, []);
+    useEffect(() => {
+        let isMounted = true;
+        let assistantInstance = null;
+
+        initAssistant(handleAction, () => assistantState).then((instance) => {
+            if (isMounted) {
+                assistantInstance = instance;
+                if (instance) {
+                    console.log('✅ Ассистент подключен');
+                } else {
+                    console.log('⚠️ Ассистент не подключен. Используйте текстовые команды для теста.');
+                }
+            }
+        });
+
+        return () => {
+            isMounted = false;
+            if (assistantInstance) {
+                setTimeout(() => {
+                    if (typeof assistantInstance.close === 'function') assistantInstance.close();
+                    if (typeof assistantInstance.destroy === 'function') assistantInstance.destroy();
+                }, 100);
+                assistantInstance = null;
+            }
+            if (window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+            }
+        };
+    }, []);
 
   function startNewGame(difficulty = game.difficulty) {
     setGame(createGame(normalizeDifficulty(difficulty)));

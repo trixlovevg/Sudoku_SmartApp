@@ -73,18 +73,64 @@ export function parseTextCommand(text) {
 export async function initAssistant(onAction, getState) {
   try {
     const salute = await import('@salutejs/client');
-    const createAssistant = salute.createAssistant || salute.default?.createAssistant;
-    if (!createAssistant) throw new Error('createAssistant не найден');
 
-    const assistant = createAssistant({ getState });
+    const token = import.meta.env.VITE_SMARTAPP_TOKEN;
+    const smartappName = import.meta.env.VITE_SMARTAPP_NAME || 'Судоку голосом';
+
+    console.log('SMARTAPP TOKEN:', token ? 'ЕСТЬ' : 'НЕТ');
+    console.log('SMARTAPP NAME:', smartappName);
+
+    // Если токена нет — возвращаем null, не пытаясь подключиться
+    if (!token) {
+      console.warn('⚠️ Токен не задан. Голосовое управление недоступно. Используйте текстовую форму для теста.');
+      return null;
+    }
+
+    let assistant;
+
+    if (salute.createSmartappDebugger) {
+      assistant = salute.createSmartappDebugger({
+        token,
+        initPhrase: `запусти ${smartappName}`,
+        getState,
+      });
+    } else {
+      const createAssistant = salute.createAssistant || salute.default?.createAssistant;
+      if (!createAssistant) {
+        throw new Error('createAssistant не найден');
+      }
+      assistant = createAssistant({ getState });
+    }
+
     assistant.on('data', (command) => {
-      const action = command?.action || command?.smart_app_data || command?.data || command;
-      if (action?.type) onAction(action);
+      const action =
+        command?.smart_app_data ||
+        command?.action ||
+        command?.data ||
+        command?.payload ||
+        command;
+
+      if (action?.type) {
+        onAction(action);
+        return;
+      }
+
+      const text =
+        command?.message?.original_text ||
+        command?.message?.text ||
+        command?.text ||
+        command?.original_text ||
+        '';
+
+      const parsedAction = parseTextCommand(text);
+      if (parsedAction) {
+        onAction(parsedAction);
+      }
     });
 
     return assistant;
   } catch (error) {
-    console.warn('Assistant Client не подключен. В браузере доступна тестовая строка команд.', error);
+    console.warn('Assistant Client не подключен.', error);
     return null;
   }
 }
